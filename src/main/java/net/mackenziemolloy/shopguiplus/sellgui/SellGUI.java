@@ -127,23 +127,25 @@ public final class SellGUI extends JavaPlugin {
 
         UpdateChecker updateChecker = new UpdateChecker(this, 85170);
         updateChecker.getVersion(updateVersion -> {
-            CommandSender console = Bukkit.getConsoleSender();
-            if (localVersion.contains("dev")) {
-                String message = (ChatColor.DARK_RED + "[" + pluginPrefix + "] You are running a DEVELOPMENT " +
-                        "build. This may contain bugs.");
-                console.sendMessage(message);
-                return;
-            }
+            scheduler.runNextTick(task -> {
+                CommandSender console = Bukkit.getConsoleSender();
+                if (localVersion.contains("dev")) {
+                    String message = (ChatColor.DARK_RED + "[" + pluginPrefix + "] You are running a DEVELOPMENT " +
+                            "build. This may contain bugs.");
+                    console.sendMessage(message);
+                    return;
+                }
 
-            if (localVersion.equalsIgnoreCase(updateVersion)) {
-                String message = (ChatColor.GREEN + "[" + pluginPrefix + "] You are running the LATEST release.");
-                console.sendMessage(message);
-                return;
-            }
+                if (localVersion.equalsIgnoreCase(updateVersion)) {
+                    String message = (ChatColor.GREEN + "[" + pluginPrefix + "] You are running the LATEST release.");
+                    console.sendMessage(message);
+                    return;
+                }
 
-            String message = (ChatColor.DARK_RED + "[" + pluginPrefix + "] There is a new update available." +
-                    " Please update ASAP. Download: https://www.spigotmc.org/resources/85170/");
-            console.sendMessage(message);
+                String message = (ChatColor.DARK_RED + "[" + pluginPrefix + "] There is a new update available." +
+                        " Please update ASAP. Download: https://www.spigotmc.org/resources/85170/");
+                console.sendMessage(message);
+            });
         });
     }
 

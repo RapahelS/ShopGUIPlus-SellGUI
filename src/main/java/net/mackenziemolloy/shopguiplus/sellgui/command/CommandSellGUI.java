@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
@@ -118,19 +117,24 @@ public final class CommandSellGUI implements TabExecutor {
             return true;
         }
 
-        CompletableFuture.runAsync(this.plugin::generateFiles).whenComplete((success, error) -> {
-            if (error != null) {
-                sender.sendMessage(ChatColor.RED + "An error occurred, please check the server console.");
-                error.printStackTrace();
-                return;
-            }
+        scheduler.runAsync(task -> {
+            this.plugin.generateFiles();
 
-            if (!this.plugin.getConfiguration().getBoolean("options.transaction_log.enabled", false)) this.plugin.closeLogger();
-            else if (this.plugin.fileLogger == null) this.plugin.initLogger();
+            Runnable completion = () -> {
+                if (!this.plugin.getConfiguration().getBoolean("options.transaction_log.enabled", false))
+                    this.plugin.closeLogger();
+                else if (this.plugin.fileLogger == null) this.plugin.initLogger();
 
-            sendMessage(sender, "reloaded_config");
+                sendMessage(sender, "reloaded_config");
+                if (sender instanceof Player player) {
+                    PlayerHandler.playSound(player, "success");
+                }
+            };
+
             if (sender instanceof Player player) {
-                PlayerHandler.playSound(player, "success");
+                scheduler.runAtEntity(player, t -> completion.run());
+            } else {
+                scheduler.runNextTick(t -> completion.run());
             }
         });
         return true;
@@ -167,22 +171,35 @@ public final class CommandSellGUI implements TabExecutor {
                 "- Memory Usage: " + getMemoryUsage() +
                 "\n\n| Plugins\n" + String.join("\n", pluginInfoList) +
                 "\n\n| Plugin Configuration\n\n" + configuration.saveToString();
-        try {
-            String pasteUrl = new Hastebin().post(pasteRaw, true);
-            String pastedDumpMsg = ChatColor.translateAlternateColorCodes('&',
-                    "&c[ShopGUIPlus-SellGUI] Successfully dumped server information here: %s.");
 
-            String message = String.format(Locale.US, pastedDumpMsg, pasteUrl);
-            Bukkit.getConsoleSender().sendMessage(message);
-            if (sender instanceof Player) sender.sendMessage(message);
+        scheduler.runAsync(task -> {
+            try {
+                String pasteUrl = new Hastebin().post(pasteRaw, true);
+                String pastedDumpMsg = ChatColor.translateAlternateColorCodes('&',
+                        "&c[ShopGUIPlus-SellGUI] Successfully dumped server information here: %s.");
 
-            if (sender instanceof Player player) {
-                PlayerHandler.playSound(player, "success");
+                String message = String.format(Locale.US, pastedDumpMsg, pasteUrl);
+
+                scheduler.runNextTick(t -> Bukkit.getConsoleSender().sendMessage(message));
+
+                if (sender instanceof Player player) {
+                    scheduler.runAtEntity(player, t -> {
+                        player.sendMessage(message);
+                        PlayerHandler.playSound(player, "success");
+                    });
+                }
+            } catch (IOException ex) {
+                Runnable errorTask = () -> {
+                    sender.sendMessage(ChatColor.RED + "An error occurred, please check the console:");
+                    ex.printStackTrace();
+                };
+                if (sender instanceof Player player) {
+                    scheduler.runAtEntity(player, t -> errorTask.run());
+                } else {
+                    scheduler.runNextTick(t -> errorTask.run());
+                }
             }
-        } catch (IOException ex) {
-            sender.sendMessage(ChatColor.RED + "An error occurred, please check the console:");
-            ex.printStackTrace();
-        }
+        });
 
         return true;
     }
@@ -311,7 +328,9 @@ public final class CommandSellGUI implements TabExecutor {
 
                 if (section.getBoolean("item.sellinventory")) {
                     scheduler.runAtEntity(human, task -> human.closeInventory());
-                    commandBase(Bukkit.getPlayer(humanName));
+                    if (human instanceof Player) {
+                        commandBase((Player) human);
+                    }
                 }
             });
 
