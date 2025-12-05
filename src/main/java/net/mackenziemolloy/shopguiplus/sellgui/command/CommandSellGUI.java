@@ -301,7 +301,7 @@ public final class CommandSellGUI implements TabExecutor {
 
                 for (String consoleCommand : consoleCommandList) {
                     String command = consoleCommand.replace("%PLAYER%", humanName);
-                    scheduler.runNextTick(task -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command));
+                    scheduler.runAtGlobal(task -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command));
                 }
 
                 for (String playerCommand : playerCommandList) {
@@ -310,8 +310,12 @@ public final class CommandSellGUI implements TabExecutor {
                 }
 
                 if (section.getBoolean("item.sellinventory")) {
-                    scheduler.runAtEntity(human, task -> human.closeInventory());
-                    commandBase(Bukkit.getPlayer(humanName));
+                    scheduler.runAtEntity(human, task -> {
+                        human.closeInventory();
+                        if (human instanceof Player player) {
+                            commandBase(player);
+                        }
+                    });
                 }
             });
 
